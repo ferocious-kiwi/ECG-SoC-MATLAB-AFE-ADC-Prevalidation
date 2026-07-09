@@ -1,15 +1,15 @@
-# MATLAB-to-XMODEL Handoff Document
+# MATLAB-to-XMODEL Handoff 문서
 
-This document defines the MATLAB reference outputs that should be used for MATLAB-vs-XMODEL equivalence verification.
-It does **not** claim that MATLAB and XMODEL are already bit-exact equivalent.
+이 문서는 MATLAB-vs-XMODEL 등가성 검증에 사용할 MATLAB reference output을 정의한다.  
+이 문서는 MATLAB과 XMODEL이 이미 bit-exact로 일치함을 주장하지 않는다.
 
-## MATLAB Role
+## MATLAB의 역할
 
-The MATLAB stage serves as a nominal system-level pre-validation and reference-generation step before SystemVerilog XMODEL implementation.
-It verifies schematic-derived AFE filter parameters, ADC headroom, code mapping, and reference output vectors for representative ECG inputs.
-Circuit-level non-idealities and mixed-signal behavioral robustness are evaluated in the subsequent XMODEL verification stage.
+MATLAB 단계는 SystemVerilog XMODEL 구현 이전의 nominal system-level pre-validation 및 reference generation 단계이다.  
+본 단계에서는 schematic 기반 AFE 필터 파라미터, ADC headroom, code mapping, 대표 ECG 입력에 대한 reference output vector를 정의한다.  
+회로 소자 수준 non-ideality와 mixed-signal behavioral robustness는 후속 XMODEL 검증 단계에서 다룬다.
 
-## Block Order
+## Block order
 
 ```text
 input ECG voltage [V]
@@ -22,9 +22,9 @@ input ECG voltage [V]
 → signed decimal stream
 ```
 
-## Units and Sampling
+## 단위 및 sampling
 
-| Item | Value |
+| 항목 | 값 |
 |---|---:|
 | Sampling rate | 1 kSPS |
 | Input unit | V |
@@ -33,7 +33,7 @@ input ECG voltage [V]
 | ADC output | 12-bit offset-binary, 0-4095 |
 | Signed stream | offset-binary − 2048 |
 
-## Reference Vector Locations
+## Reference vector 위치
 
 ```text
 reference_vectors/NSR/
@@ -44,7 +44,7 @@ reference_vectors/reference_vector_manifest.csv
 reference_vectors/reference_vector_manifest.md
 ```
 
-Each case contains:
+각 case에는 다음 파일이 포함된다.
 
 ```text
 input.csv
@@ -53,17 +53,17 @@ adc_offset_binary.mem
 adc_signed.txt
 ```
 
-## Recommended XMODEL Comparison Metrics
+## 권장 XMODEL 비교 metric
 
-| Metric | Target / Comment |
+| Metric | 목표 / 비고 |
 |---|---|
 | waveform alignment | lag = 0 sample |
-| RMS error | preferably 2-3 LSB or lower after convention matching |
-| max absolute error | inspect outliers |
-| correlation | 0.99 or higher recommended |
-| ADC code convention | identical offset-binary/signed convention |
-| final signed stream | same convention maintained |
+| RMS error | convention matching 후 가능하면 2-3 LSB 이하 |
+| max absolute error | outlier 확인 |
+| correlation | 0.99 이상 권장 |
+| ADC code convention | 동일한 offset-binary/signed convention 유지 |
+| final signed stream | 동일 convention 유지 |
 
-## Non-Claims
+## 주장하지 않는 항목
 
-This MATLAB package does not claim transistor-level, PCB-level, silicon-level, clinical validation, op-amp non-ideality verification, CMRR verification, ADC non-ideal robustness, or MATLAB-vs-XMODEL bit-exact equivalence completion.
+본 MATLAB package는 transistor-level, PCB-level, silicon-level, clinical validation, op-amp non-ideality 검증, CMRR 검증, ADC non-ideal robustness 검증, MATLAB-vs-XMODEL bit-exact equivalence 완료를 주장하지 않는다.
