@@ -12,7 +12,8 @@ input ECG voltage [V]
 → 60 Hz notch, Q≈5.0
 → LPF 150.1 Hz
 → ADC ±1.65 V
-→ 12-bit offset-binary / signed stream
+→ 12-bit offset-binary ADC code
+→ signed decimal stream
 ```
 
 ## 2. 시간 영역 stream 등가성 기준
@@ -45,9 +46,14 @@ MATLAB time-domain stream은 digital Q≈5 notch approximation을 사용한다.
 두 결과는 서로 관련되어 있지만, 동일한 비교 대상은 아니다.  
 따라서 XMODEL 검증에서는 time-domain stream equivalence와 notch frequency-response validation을 분리해서 확인해야 한다.
 
-## 4. Input / Output convention
+## 4. Input convention
 
 - XMODEL analog input은 `reference_vectors/<CLASS>/input.csv`의 `voltage_V`를 사용한다.
 - `source_code_signed_est_5uV_per_code`는 source ECG scale 추적용 estimate이며, AFE ADC output code가 아니다.
-- 권장 XMODEL/RTL replay format은 `adc_offset_binary.mem`이다.
-- signed stream 비교에는 `adc_signed.txt`를 사용한다.
+
+## 5. ADC output format / RTL replay convention
+
+- `adc_offset_binary.mem`은 물리 ADC code convention 확인용 reference이다.
+- `adc_signed.txt`는 signed stream convention 확인용 reference이다.
+- 공식 XMODEL/RTL replay format은 수환 XMODEL repo와 양건 digital RTL testbench의 input convention에 맞춰 확정해야 한다.
+- 최종 digital input contract가 signed 12-bit ECG stream이므로, offset-binary code를 RTL에 직접 사용할 경우 mid-code subtraction 또는 convention 정합 여부를 명확히 확인해야 한다.
