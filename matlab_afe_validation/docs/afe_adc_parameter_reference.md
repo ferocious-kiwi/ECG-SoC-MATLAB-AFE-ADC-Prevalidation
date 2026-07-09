@@ -1,4 +1,8 @@
-# AFE+ADC Parameter Reference\n\n이 문서는 XMODEL 구현자가 그대로 참고할 nominal AFE+ADC parameter reference이다. 실제 transistor-level 또는 post-layout 검증 완료를 의미하지 않는다.\n\n| block | parameter | value | unit | note |
+# AFE+ADC Parameter Reference
+
+이 문서는 XMODEL 구현자가 그대로 참고할 nominal AFE+ADC parameter reference이다. 실제 transistor-level 또는 post-layout 검증 완료를 의미하지 않는다.
+
+| block | parameter | value | unit | note |
 |---|---|---|---|---|
 | Sampling | fs | 1000 | Hz | Nominal MATLAB/XMODEL stream sampling rate |
 | HPF | R_hpf | 10000000 | Ohm | Schematic-derived high-pass resistor |

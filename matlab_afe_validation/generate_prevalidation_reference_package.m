@@ -520,7 +520,14 @@ function write_docs(docs_dir, figures_dir, param_table, freq_table, notch_metric
 end
 
 function write_text(file, txt)
-    fid = fopen(file, 'w');
+    % Normalize generated Markdown for MATLAB releases where double-quoted
+    % strings keep \n as literal characters instead of actual line breaks.
+    if isstring(txt)
+        txt = char(txt);
+    end
+    txt = strrep(txt, '\n', sprintf('\n'));
+
+    fid = fopen(file, 'w', 'n', 'UTF-8');
     fprintf(fid, '%s', txt);
     fclose(fid);
 end

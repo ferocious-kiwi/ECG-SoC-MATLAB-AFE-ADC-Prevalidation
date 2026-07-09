@@ -1,4 +1,10 @@
-# Frequency Response Numerical Reference\n\nCSV: `results_dataset/afe_frequency_response_metrics.csv`\n\n본 결과는 XMODEL 구현 전 MATLAB reference frequency response이다. MATLAB time-domain chain의 60 Hz digital notch approximation은 정확히 60 Hz에서 ideal zero를 만들 수 있다. 따라서 60 Hz의 numerical dB 값은 physical analog attenuation claim이 아니며, CSV에서는 `< -120 dB` reporting cap으로 해석한다. 최종 논문에서 사용할 analog-style notch attenuation claim은 active Twin-T dense sweep 결과를 사용한다.\n\n| frequency_Hz | purpose | magnitude_V_per_V | magnitude_dB | phase_deg | group_delay_samples | group_delay_ms | model_note | interpretation_note |
+# Frequency Response Numerical Reference
+
+CSV: `results_dataset/afe_frequency_response_metrics.csv`
+
+본 결과는 XMODEL 구현 전 MATLAB reference frequency response이다. MATLAB time-domain chain의 60 Hz digital notch approximation은 정확히 60 Hz에서 ideal zero를 만들 수 있다. 따라서 60 Hz의 numerical dB 값은 physical analog attenuation claim이 아니며, CSV에서는 `< -120 dB` reporting cap으로 해석한다. 최종 논문에서 사용할 analog-style notch attenuation claim은 active Twin-T dense sweep 결과를 사용한다.
+
+| frequency_Hz | purpose | magnitude_V_per_V | magnitude_dB | phase_deg | group_delay_samples | group_delay_ms | model_note | interpretation_note |
 |---|---|---|---|---|---|---|---|---|
 | 0.05 | baseline drift region | 20.727092953 | 26.330767901 | 84.0523148345 | 328.092106396 | 328.092106396 | digital MATLAB nominal chain: HPF*IA*digital Q≈5 notch*LPF |  |
 | 0.1 | low-frequency drift | 40.8083709308 | 32.2149851619 | 78.2283268843 | 317.998777779 | 317.998777779 | digital MATLAB nominal chain: HPF*IA*digital Q≈5 notch*LPF |  |
