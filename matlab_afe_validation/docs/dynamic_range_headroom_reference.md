@@ -1,4 +1,4 @@
-# Dynamic Range and ADC Headroom Reference
+# Dynamic Range 및 ADC Headroom Reference
 
 MATLAB nominal pre-validation을 통해 선택한 IA gain과 ADC range가 대표 ECG 입력에 대해 clipping 없이 충분한 headroom을 제공함을 확인하였다. 이 결과는 representative input 기준의 nominal ADC headroom reference이다.
 

@@ -1,4 +1,4 @@
-# Validation Status
+# 검증 상태 정리
 
 이 문서는 MATLAB repo가 주장할 수 있는 범위와 후속 XMODEL/digital 파트로 넘겨야 하는 범위를 정리한다.
 

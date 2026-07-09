@@ -1,4 +1,4 @@
-# Reference Vector Manifest
+# Reference Vector Manifest 정리
 
 이 문서는 MATLAB reference input/output vector의 SHA256 hash를 정리한다. 이 vector는 후속 MATLAB-vs-XMODEL equivalence verification의 기준으로 사용된다.
 

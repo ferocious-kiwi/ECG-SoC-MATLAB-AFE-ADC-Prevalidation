@@ -1,4 +1,4 @@
-# AFE+ADC Parameter Reference
+# AFE+ADC Parameter Reference 정리
 
 이 문서는 XMODEL 구현자가 그대로 참고할 nominal AFE+ADC parameter reference이다. 실제 transistor-level 또는 post-layout 검증 완료를 의미하지 않는다.
 

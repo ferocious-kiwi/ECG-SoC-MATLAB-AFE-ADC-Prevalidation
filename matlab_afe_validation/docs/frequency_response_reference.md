@@ -1,4 +1,4 @@
-# Frequency Response Numerical Reference
+# Frequency Response Numerical Reference 정리
 
 CSV: `results_dataset/afe_frequency_response_metrics.csv`
 

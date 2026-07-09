@@ -1,4 +1,4 @@
-# ADC Code Mapping Convention
+# ADC Code Mapping Convention 정리
 
 MATLAB ADC output은 12-bit offset-binary code와 signed decimal stream 두 형태로 저장된다. `adc_offset_binary.mem`은 3-digit hex per line이며 XMODEL/RTL replay에 권장된다. `adc_signed.txt`는 `adc_offset_binary - 2048`로 계산한 signed decimal stream이다.
 

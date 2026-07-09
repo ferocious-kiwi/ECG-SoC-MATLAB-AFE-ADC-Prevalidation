@@ -1,4 +1,4 @@
-# Dense 60 Hz Notch Reference
+# Dense 60 Hz Notch Reference 정리
 
 이 문서는 60 Hz mains target에 대한 active Twin-T frequency-domain nominal reference를 정리한다. 50 Hz까지 완전히 제거한다고 주장하지 않는다.
 

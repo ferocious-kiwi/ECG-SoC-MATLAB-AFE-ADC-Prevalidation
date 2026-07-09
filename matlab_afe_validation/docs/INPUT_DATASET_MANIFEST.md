@@ -1,4 +1,4 @@
-# Input Dataset Manifest
+# 입력 데이터셋 Manifest
 
 이 문서는 MATLAB nominal pre-validation에 사용한 source input dataset의 재현성 정보를 정리한다. Fresh clone 기준 raw ECG input부터 완전 재생성하려면 `afe_input_dataset/`이 필요하다. 해당 폴더가 없으면 top-level script는 checked-in `results_dataset/` artifact를 기반으로 secondary report, figure, manifest를 재생성한다.
 
