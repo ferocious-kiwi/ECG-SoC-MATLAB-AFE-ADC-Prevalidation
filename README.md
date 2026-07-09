@@ -43,10 +43,11 @@ ECG input voltage_V
 ## 폴더 구조
 
 ```text
+README.md                         # GitHub repo 첫 화면용 README
 matlab_afe_validation/
-├─ README.md
 ├─ run_all_matlab_afe_prevalidation.m
 ├─ run_afe_dataset_validation.m
+├─ generate_prevalidation_reference_package.m
 ├─ afe_adc_params.m
 ├─ afe_adc_model.m
 ├─ design_afe_filters.m
@@ -99,7 +100,7 @@ MATLAB Current Folder를 `matlab_afe_validation/`로 설정한 뒤 아래 script
 run_all_matlab_afe_prevalidation
 ```
 
-이 script는 다음 항목을 재생성하도록 구성되어 있다.
+이 script는 `afe_input_dataset/` 존재 여부에 따라 가능한 범위에서 다음 항목을 재생성하도록 구성되어 있다.
 
 ```text
 parameter reference

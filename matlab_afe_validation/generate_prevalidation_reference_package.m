@@ -1,30 +1,23 @@
 function generate_prevalidation_reference_package()
 %GENERATE_PREVALIDATION_REFERENCE_PACKAGE
-% Generate MATLAB nominal AFE+ADC pre-validation reference artifacts.
+% MATLAB 기반 ECG AFE+ADC nominal pre-validation reference package 생성.
 %
-% This script assumes that run_afe_dataset_validation has already generated:
-%   results_dataset/<CLASS>/matlab_afe_adc_output.csv
-%   results_dataset/<CLASS>/matlab_adc_offset_binary_hex.mem
-%   results_dataset/<CLASS>/matlab_adc_signed_decimal.txt
+% 목적:
+%   - SystemVerilog XMODEL 구현 전 nominal parameter/frequency/headroom/code convention/reference vector 제공
+%   - MATLAB-vs-XMODEL 비교용 golden/reference vector 생성
 %
-% Generated artifact categories:
-%   - results_dataset/*reference*.csv
-%   - docs/*.md
-%   - figures/*.png and *.pdf
-%   - reference_vectors/*
-%   - reference_vectors/reference_vector_manifest.csv/.md
-%
-% This script creates nominal MATLAB references for later MATLAB-vs-XMODEL
-% equivalence verification. It does not claim that MATLAB and XMODEL are
-% already bit-exact equivalent.
+% 주의:
+%   - transistor-level, PCB-level, silicon-level, clinical validation이 아님
+%   - MATLAB과 XMODEL이 이미 bit-exact equivalent라는 claim이 아님
+%   - afe_input_dataset/이 없으면 checked-in results_dataset/ artifact 기반 secondary report를 재생성함
 
     p = afe_adc_params();
     filt = design_afe_filters(p);
 
     results_dir = 'results_dataset';
-    docs_dir = 'docs';
+    docs_dir    = 'docs';
     figures_dir = 'figures';
-    ref_dir = 'reference_vectors';
+    ref_dir     = 'reference_vectors';
 
     ensure_dir(results_dir);
     ensure_dir(docs_dir);
@@ -33,7 +26,7 @@ function generate_prevalidation_reference_package()
 
     classes = {'NSR','CHF','ARR','AFF'};
 
-    %% A. Parameter reference
+    %% A. AFE+ADC parameter reference
     param_table = make_parameter_reference_table(p);
     writetable(param_table, fullfile(results_dir, 'afe_adc_parameter_reference.csv'));
 
@@ -42,7 +35,7 @@ function generate_prevalidation_reference_package()
     writetable(freq_table, fullfile(results_dir, 'afe_frequency_response_metrics.csv'));
     plot_total_frequency_response(p, filt, figures_dir);
 
-    %% C. Dense 60 Hz notch reference
+    %% C. Dense 60 Hz active Twin-T notch reference
     [notch_table, notch_metrics] = make_notch_dense_sweep(p);
     writetable(notch_table, fullfile(results_dir, 'notch_dense_sweep.csv'));
     writetable(notch_metrics, fullfile(results_dir, 'notch_dense_sweep_metrics.csv'));
@@ -58,17 +51,21 @@ function generate_prevalidation_reference_package()
     mapping_table = make_adc_code_mapping_test(p);
     writetable(mapping_table, fullfile(results_dir, 'adc_code_mapping_test.csv'));
 
-    %% F. Reference vector package and hash manifest
+    %% F. Reference vector package and SHA256 manifest
     make_reference_vectors(classes, results_dir, ref_dir);
     manifest_table = make_reference_vector_manifest(ref_dir);
     writetable(manifest_table, fullfile(ref_dir, 'reference_vector_manifest.csv'));
     write_reference_vector_manifest_md(manifest_table, fullfile(ref_dir, 'reference_vector_manifest.md'));
 
-    %% G. Handoff/overview figures and docs
-    plot_flow_figures(figures_dir);
-    write_docs(docs_dir, param_table, freq_table, notch_metrics, headroom_table, mapping_table, p);
+    %% G. Input dataset manifest
+    input_manifest = make_input_dataset_manifest(classes, ref_dir, p);
+    writetable(input_manifest, fullfile(results_dir, 'input_dataset_manifest.csv'));
 
-    fprintf('Generated MATLAB nominal pre-validation reference package.\n');
+    %% H. Handoff/overview figures and docs
+    plot_flow_figures(figures_dir);
+    write_docs(docs_dir, figures_dir, param_table, freq_table, notch_metrics, headroom_table, mapping_table, input_manifest, p);
+
+    fprintf('Generated MATLAB AFE+ADC nominal pre-validation reference package.\n');
 end
 
 %% ------------------------------------------------------------------------
@@ -79,26 +76,23 @@ function ensure_dir(d)
 end
 
 function T = make_parameter_reference_table(p)
-    block = {};
-    parameter = {};
-    value = {};
-    unit = {};
-    note = {};
-    add('Sampling','fs',p.fs,'Hz','ADC/system sample rate used for nominal MATLAB validation');
+    block = {}; parameter = {}; value = {}; unit = {}; note = {};
+    add('Sampling','fs',p.fs,'Hz','Nominal MATLAB/XMODEL stream sampling rate');
     add('HPF','R_hpf',p.R_hpf,'Ohm','Schematic-derived high-pass resistor');
     add('HPF','C_hpf',p.C_hpf,'F','Schematic-derived high-pass capacitor');
-    add('HPF','fc_hpf',p.fc_hpf,'Hz','1/(2*pi*R*C), baseline drift removal reference');
+    add('HPF','fc_hpf',p.fc_hpf,'Hz','1/(2*pi*R*C), baseline drift reference');
     add('Instrumentation Amplifier','Rfb',p.Rfb,'Ohm','IA feedback resistor');
     add('Instrumentation Amplifier','Rg',p.Rg,'Ohm','IA gain-setting resistor');
     add('Instrumentation Amplifier','Av_ia',p.Av_ia,'V/V','1 + 2*Rfb/Rg');
     add('Differential Amplifier','Av_diff',p.Av_diff,'V/V','Unity differential stage in nominal model');
+    add('Instrumentation Amplifier','Av_total',p.Av_total,'V/V','Av_ia * Av_diff');
     add('Notch','f_notch',p.f_notch,'Hz','60 Hz mains target');
     add('Notch','R_twin',p.R_twin,'Ohm','Active Twin-T nominal resistor');
-    add('Notch','C_twin',p.C_twin,'F','Active Twin-T nominal capacitor');
+    add('Notch','C_twin',p.C_twin,'F','Active Twin-T nominal capacitor reference');
     add('Notch','Rk1',p.Rk1,'Ohm','Bootstrap feedback resistor');
     add('Notch','Rk2',p.Rk2,'Ohm','Bootstrap feedback resistor');
     add('Notch','k_boot',p.k_boot,'V/V','Rk2/(Rk1+Rk2)');
-    add('Notch','Q_notch',p.Q_notch,'-','Approximate Q = 1/(4*(1-k))');
+    add('Notch','configured_Q',p.Q_notch,'-','Nominal configured Q = 1/(4*(1-k))');
     add('LPF','R_lpf',p.R_lpf,'Ohm','Schematic-derived low-pass resistor');
     add('LPF','C_lpf',p.C_lpf,'F','Schematic-derived low-pass capacitor');
     add('LPF','fc_lpf',p.fc_lpf,'Hz','1/(2*pi*R*C), anti-aliasing reference');
@@ -107,8 +101,8 @@ function T = make_parameter_reference_table(p)
     add('ADC','vref_p',p.vref_p,'V','Positive ADC input reference');
     add('ADC','adc_max',p.adc_max,'code','2^12 - 1');
     add('ADC','lsb',(p.vref_p-p.vref_n)/p.adc_max,'V/LSB','3.3/4095');
-    add('Output stream','offset_binary_mem',NaN,'hex','%03X per line, recommended for readmemh replay');
-    add('Output stream','signed_decimal_txt',NaN,'decimal','adc_offset_binary - 2048');
+    add('Output stream','offset_binary_mem','%03X per line','hex','Recommended for XMODEL/RTL readmemh-style replay');
+    add('Output stream','signed_decimal_txt','adc_offset_binary - 2048','decimal','Recommended signed stream convention for digital/SNN handoff');
     T = table(string(block(:)), string(parameter(:)), string(value(:)), string(unit(:)), string(note(:)), ...
         'VariableNames', {'block','parameter','value','unit','note'});
 
@@ -116,11 +110,7 @@ function T = make_parameter_reference_table(p)
         block{end+1} = b; %#ok<AGROW>
         parameter{end+1} = par; %#ok<AGROW>
         if isnumeric(val)
-            if isnan(val)
-                value{end+1} = ''; %#ok<AGROW>
-            else
-                value{end+1} = sprintf('%.12g', val); %#ok<AGROW>
-            end
+            value{end+1} = sprintf('%.12g', val); %#ok<AGROW>
         else
             value{end+1} = char(val); %#ok<AGROW>
         end
@@ -142,6 +132,13 @@ function T = make_frequency_response_metrics(p, filt)
     mag_db = 20*log10(max(mag, realmin));
     phase_deg = angle(H)*180/pi;
 
+    interpretation_note = strings(numel(freq), 1);
+    idx60 = abs(freq - 60) < 1e-9;
+    if any(idx60)
+        mag_db(idx60) = -120;  % reporting cap for ideal digital zero
+        interpretation_note(idx60) = "ideal digital notch zero; numerical dB value capped as < -120 dB; not a physical analog attenuation claim";
+    end
+
     group_delay_samples = nan(size(freq));
     for i = 1:numel(freq)
         f = freq(i);
@@ -155,10 +152,10 @@ function T = make_frequency_response_metrics(p, filt)
         end
     end
     group_delay_ms = group_delay_samples / p.fs * 1000;
-    model_note = repmat("digital MATLAB nominal chain: HPF*IA*notch*LPF", numel(freq), 1);
+    model_note = repmat("digital MATLAB nominal chain: HPF*IA*digital Q≈5 notch*LPF", numel(freq), 1);
 
-    T = table(freq, purpose, mag, mag_db, phase_deg, group_delay_samples, group_delay_ms, model_note, ...
-        'VariableNames', {'frequency_Hz','purpose','magnitude_V_per_V','magnitude_dB','phase_deg','group_delay_samples','group_delay_ms','model_note'});
+    T = table(freq, purpose, mag, mag_db, phase_deg, group_delay_samples, group_delay_ms, model_note, interpretation_note, ...
+        'VariableNames', {'frequency_Hz','purpose','magnitude_V_per_V','magnitude_dB','phase_deg','group_delay_samples','group_delay_ms','model_note','interpretation_note'});
 end
 
 function H = total_response(f, p, filt)
@@ -171,8 +168,7 @@ function H = freqz_eval(b, a, f, fs)
     f = f(:);
     w = 2*pi*f/fs;
     zinv = exp(-1j*w);
-    num = zeros(size(f));
-    den = zeros(size(f));
+    num = zeros(size(f)); den = zeros(size(f));
     for k = 1:numel(b)
         num = num + b(k) .* zinv.^(k-1);
     end
@@ -197,7 +193,10 @@ function [T, M] = make_notch_dense_sweep(p)
     exact60 = 20*log10(max(abs(H60), realmin));
     att50 = 20*log10(max(abs(H50), realmin));
 
-    mask = magnitude_dB <= -3;
+    % Local passband reference: use 30 Hz and 100 Hz sweep endpoints.
+    local_ref = mean([magnitude_dB(1), magnitude_dB(end)]);
+    threshold = local_ref - 3;
+    mask = magnitude_dB <= threshold;
     if any(mask)
         idxs = find(mask);
         bw_low = frequency_Hz(idxs(1));
@@ -208,11 +207,13 @@ function [T, M] = make_notch_dense_sweep(p)
         bw_low = NaN; bw_high = NaN; bw = NaN; q_est = NaN;
     end
 
-    M = table(60, center, exact60, min_att, bw_low, bw_high, bw, q_est, p.Q_notch, att50, ...
-        "60 Hz mains target; 30-100 Hz sweep; not claimed as complete 50 Hz rejection; bandwidth/Q are nominal MATLAB estimates, not physical circuit measurements", ...
-        'VariableNames', {'target_frequency_Hz','notch_center_frequency_Hz','exact_60Hz_attenuation_dB', ...
-        'minimum_attenuation_dB_in_sweep','minus3dB_bandwidth_low_Hz','minus3dB_bandwidth_high_Hz', ...
-        'minus3dB_bandwidth_Hz','approximate_Q_from_minus3dB','configured_Q','attenuation_at_50Hz_dB','scope_note'});
+    M = table(60, 30, 100, center, exact60, min_att, local_ref, threshold, bw_low, bw_high, bw, q_est, p.Q_notch, att50, ...
+        "No; nominal MATLAB reference only", ...
+        "Bandwidth is computed relative to the local passband reference magnitude from 30 Hz and 100 Hz endpoints. Estimated Q is a nominal sweep estimate, not a measured physical circuit Q.", ...
+        "60 Hz mains target; not claimed as complete 50 Hz rejection", ...
+        'VariableNames', {'target_frequency_Hz','sweep_low_Hz','sweep_high_Hz','notch_center_frequency_Hz','exact_60Hz_attenuation_dB', ...
+        'minimum_attenuation_dB_in_sweep','local_passband_reference_dB','minus3dB_threshold_dB','bandwidth_low_Hz','bandwidth_high_Hz', ...
+        'bandwidth_Hz','estimated_Q_from_sweep','configured_Q','attenuation_at_50Hz_dB','physical_Q_claim','definition_note','scope_note'});
 end
 
 function T = make_dynamic_range_headroom_summary(classes, p, results_dir)
@@ -260,8 +261,12 @@ function T = make_adc_code_mapping_test(p)
         hex(i) = upper(dec2hex(code(i), 3));
     end
     formula = repmat("floor((V + 1.65)/3.3 * 4095), clipped to [0,4095]", numel(code), 1);
-    T = table(vin, code, hex, signed, formula, ...
-        'VariableNames', {'input_voltage_V','offset_binary_code_decimal','offset_binary_code_hex','signed_decimal','formula'});
+    note = strings(numel(code), 1);
+    note(vin == p.vref_n) = "negative full-scale";
+    note(vin == 0) = "0 V maps to offset-binary 2047 and signed -1 because floor() is used";
+    note(vin == p.vref_p) = "positive full-scale";
+    T = table(vin, code, hex, signed, formula, note, ...
+        'VariableNames', {'input_voltage_V','offset_binary_code_decimal','offset_binary_code_hex','signed_decimal','formula','note'});
 end
 
 function make_reference_vectors(classes, results_dir, ref_dir)
@@ -271,6 +276,10 @@ function make_reference_vectors(classes, results_dir, ref_dir)
         out_dir = fullfile(ref_dir, rec);
         ensure_dir(out_dir);
         src_csv = fullfile(results_dir, rec, 'matlab_afe_adc_output.csv');
+        if ~exist(src_csv, 'file')
+            warning('Missing %s; skip reference vector for %s', src_csv, rec);
+            continue;
+        end
         D = readtable(src_csv);
         sample_index = (0:height(D)-1)';
         time_s = D.time_s;
@@ -279,7 +288,9 @@ function make_reference_vectors(classes, results_dir, ref_dir)
         inputT = table(sample_index, time_s, voltage_V, source_code_signed_est_5uV_per_code);
         writetable(inputT, fullfile(out_dir, 'input.csv'));
 
-        D.Properties.VariableNames{'adc_code'} = 'adc_offset_binary';
+        if any(strcmp(D.Properties.VariableNames, 'adc_code'))
+            D.Properties.VariableNames{strcmp(D.Properties.VariableNames, 'adc_code')} = 'adc_offset_binary';
+        end
         writetable(D, fullfile(out_dir, 'matlab_stage_outputs.csv'));
 
         copyfile(fullfile(results_dir, rec, 'matlab_adc_offset_binary_hex.mem'), fullfile(out_dir, 'adc_offset_binary.mem'));
@@ -288,21 +299,36 @@ function make_reference_vectors(classes, results_dir, ref_dir)
 end
 
 function T = make_reference_vector_manifest(ref_dir)
+    % Build a path-portable manifest for reference_vectors/.
+    % MATLAB on Windows may return absolute paths such as an absolute Windows user path in
+    % dir().folder.  For GitHub/XMODEL handoff, the manifest must always
+    % use repository-relative paths:
+    %   reference_vectors/<CLASS>/<FILE>
     files = dir(fullfile(ref_dir, '**', '*'));
     rel = {}; cls = {}; role = {}; bytes = []; sha = {};
-    root = char(java.io.File(ref_dir).getCanonicalPath());
+
     for i = 1:numel(files)
-        if files(i).isdir
+        if files(i).isdir || contains(files(i).name, 'reference_vector_manifest')
             continue;
         end
-        if contains(files(i).name, 'reference_vector_manifest')
-            continue;
-        end
+
         full = fullfile(files(i).folder, files(i).name);
-        canon = char(java.io.File(full).getCanonicalPath());
-        r = erase(canon, [root filesep]);
-        r = strrep(r, filesep, '/');
+        norm_full = strrep(full, '\', '/');
+        marker = '/reference_vectors/';
+        idx = strfind(norm_full, marker);
+
+        if ~isempty(idx)
+            % Keep only <CLASS>/<FILE> after the last reference_vectors marker.
+            r = norm_full(idx(end) + length(marker):end);
+        else
+            % Fallback for relative folder strings.
+            norm_ref = strrep(ref_dir, '\', '/');
+            r = strrep(norm_full, [norm_ref '/'], '');
+        end
+
+        r = regexprep(r, '^/+|/+$', '');
         parts = split(string(r), '/');
+
         rel{end+1,1} = ['reference_vectors/' char(r)]; %#ok<AGROW>
         if numel(parts) >= 2
             cls{end+1,1} = char(parts(1)); %#ok<AGROW>
@@ -313,6 +339,7 @@ function T = make_reference_vector_manifest(ref_dir)
         bytes(end+1,1) = files(i).bytes; %#ok<AGROW>
         sha{end+1,1} = sha256_file(full); %#ok<AGROW>
     end
+
     T = table(string(rel), string(cls), string(role), bytes, string(sha), ...
         'VariableNames', {'relative_path','class','file_role','bytes','sha256'});
 end
@@ -320,13 +347,66 @@ end
 function write_reference_vector_manifest_md(T, out_file)
     fid = fopen(out_file, 'w');
     fprintf(fid, '# Reference Vector Manifest\n\n');
-    fprintf(fid, 'This manifest lists SHA256 hashes for MATLAB reference input/output vectors used for subsequent MATLAB-vs-XMODEL equivalence verification.\n\n');
+    fprintf(fid, '이 문서는 MATLAB reference input/output vector의 SHA256 hash를 정리한다. 이 vector는 후속 MATLAB-vs-XMODEL equivalence verification의 기준으로 사용된다.\n\n');
+    fprintf(fid, '> `source_code_signed_est_5uV_per_code`는 원본 ECG 입력 전압 scale 추적용 estimate이며 AFE ADC output code가 아니다. XMODEL analog input은 `voltage_V`를 사용한다.\n\n');
     fprintf(fid, '| Class | File role | Relative path | Bytes | SHA256 |\n');
     fprintf(fid, '|---|---|---|---:|---|\n');
     for i = 1:height(T)
         fprintf(fid, '| %s | %s | `%s` | %d | `%s` |\n', T.class(i), T.file_role(i), T.relative_path(i), T.bytes(i), T.sha256(i));
     end
     fclose(fid);
+end
+
+function T = make_input_dataset_manifest(classes, ref_dir, p)
+    input_class = strings(numel(classes),1);
+    expected_input_path = strings(numel(classes),1);
+    raw_source_file_in_repo = strings(numel(classes),1);
+    raw_source_input_sha256 = strings(numel(classes),1);
+    checked_in_reference_input_path = strings(numel(classes),1);
+    checked_in_reference_input_sha256 = strings(numel(classes),1);
+    sample_count = zeros(numel(classes),1);
+    sampling_rate_Hz = zeros(numel(classes),1);
+    duration_s = zeros(numel(classes),1);
+    voltage_min_V = zeros(numel(classes),1);
+    voltage_max_V = zeros(numel(classes),1);
+    checked_in_reference_copy_in_repo = strings(numel(classes),1);
+    regeneration_method = strings(numel(classes),1);
+
+    for i = 1:numel(classes)
+        rec = classes{i};
+        input_class(i) = string(rec);
+        expected_input_path(i) = "afe_input_dataset/afe_input_" + string(rec) + ".csv";
+        raw_path = char(expected_input_path(i));
+        if exist(raw_path, 'file')
+            raw_source_file_in_repo(i) = "Yes";
+            raw_source_input_sha256(i) = string(sha256_file(raw_path));
+        else
+            raw_source_file_in_repo(i) = "No";
+            raw_source_input_sha256(i) = "N/A; raw source input not checked in";
+        end
+        ref_path = fullfile(ref_dir, rec, 'input.csv');
+        checked_in_reference_input_path(i) = "reference_vectors/" + string(rec) + "/input.csv";
+        if exist(ref_path, 'file')
+            checked_in_reference_copy_in_repo(i) = "Yes";
+            checked_in_reference_input_sha256(i) = string(sha256_file(ref_path));
+            D = readtable(ref_path);
+            sample_count(i) = height(D);
+            sampling_rate_Hz(i) = p.fs;
+            duration_s(i) = height(D)/p.fs;
+            voltage_min_V(i) = min(D.voltage_V);
+            voltage_max_V(i) = max(D.voltage_V);
+        else
+            checked_in_reference_copy_in_repo(i) = "No";
+            checked_in_reference_input_sha256(i) = "N/A";
+            sample_count(i) = NaN; sampling_rate_Hz(i) = p.fs; duration_s(i) = NaN;
+            voltage_min_V(i) = NaN; voltage_max_V(i) = NaN;
+        end
+        regeneration_method(i) = "Full regeneration requires afe_input_dataset/; without it, rebuild secondary reports/figures/manifests from checked-in results_dataset artifacts.";
+    end
+
+    T = table(input_class, expected_input_path, raw_source_file_in_repo, raw_source_input_sha256, ...
+        checked_in_reference_input_path, checked_in_reference_input_sha256, sample_count, sampling_rate_Hz, duration_s, ...
+        voltage_min_V, voltage_max_V, checked_in_reference_copy_in_repo, regeneration_method);
 end
 
 function h = sha256_file(filename)
@@ -343,13 +423,15 @@ end
 function plot_total_frequency_response(p, filt, figures_dir)
     f = logspace(log10(0.03), log10(500), 4000)';
     H = total_response(f, p, filt);
+    mag_db = 20*log10(max(abs(H), 1e-12));
     fig = figure('Visible','off');
-    semilogx(f, 20*log10(max(abs(H), 1e-12))); grid on;
+    semilogx(f, mag_db); grid on;
     xlabel('Frequency [Hz]'); ylabel('Magnitude [dB]');
     title('MATLAB Nominal AFE+ADC Frequency Response Reference');
     xline(p.fc_hpf, '--', 'HPF 0.482 Hz');
-    xline(60, '--', '60 Hz notch');
+    xline(60, '--', '60 Hz digital notch target');
     xline(p.fc_lpf, '--', 'LPF 150 Hz');
+    text(62, -105, '60 Hz value may be ideal digital zero; use dense active Twin-T sweep for analog-style notch claim', 'FontSize', 7);
     save_figure(fig, figures_dir, 'fig_total_frequency_response');
 end
 
@@ -359,8 +441,10 @@ function plot_notch_dense_sweep(T, M, figures_dir)
     xlabel('Frequency [Hz]'); ylabel('Magnitude [dB]');
     title('Dense 60 Hz Active Twin-T Notch Reference');
     xline(60, '--', '60 Hz target');
-    txt = sprintf('60 Hz attenuation %.2f dB', M.exact_60Hz_attenuation_dB(1));
-    text(60.1, max(min(T.magnitude_dB)+5, -120), txt);
+    yline(M.minus3dB_threshold_dB(1), ':', 'local passband -3 dB');
+    txt = sprintf('60 Hz attenuation %.2f dB; configured Q %.1f; estimated Q %.2f', ...
+        M.exact_60Hz_attenuation_dB(1), M.configured_Q(1), M.estimated_Q_from_sweep(1));
+    text(35, -70, txt, 'FontSize', 8);
     save_figure(fig, figures_dir, 'fig_notch_dense_sweep');
 end
 
@@ -376,7 +460,12 @@ function plot_adc_code_distribution(classes, results_dir, figures_dir)
     fig = figure('Visible','off'); hold on; grid on;
     for i = 1:numel(classes)
         D = readtable(fullfile(results_dir, classes{i}, 'matlab_afe_adc_output.csv'));
-        histogram(D.adc_code, 80, 'Normalization', 'pdf', 'DisplayStyle', 'stairs');
+        if any(strcmp(D.Properties.VariableNames,'adc_code'))
+            codes = D.adc_code;
+        else
+            codes = D.adc_offset_binary;
+        end
+        histogram(codes, 80, 'Normalization', 'pdf', 'DisplayStyle', 'stairs');
     end
     xline(0, '--'); xline(2048, ':'); xline(4095, '--');
     legend(classes, 'Location', 'best');
@@ -418,13 +507,16 @@ function save_figure(fig, figures_dir, name)
 end
 
 %% Docs -------------------------------------------------------------------
-function write_docs(docs_dir, param_table, freq_table, notch_metrics, headroom_table, mapping_table, p)
+function write_docs(docs_dir, figures_dir, param_table, freq_table, notch_metrics, headroom_table, mapping_table, input_manifest, p)
     write_text(fullfile(docs_dir, 'afe_adc_parameter_reference.md'), compose_parameter_doc(param_table));
     write_text(fullfile(docs_dir, 'frequency_response_reference.md'), compose_frequency_doc(freq_table));
     write_text(fullfile(docs_dir, 'notch_60hz_reference.md'), compose_notch_doc(notch_metrics));
     write_text(fullfile(docs_dir, 'dynamic_range_headroom_reference.md'), compose_headroom_doc(headroom_table));
     write_text(fullfile(docs_dir, 'adc_code_mapping_convention.md'), compose_adc_mapping_doc(mapping_table));
     write_text(fullfile(docs_dir, 'MATLAB_TO_XMODEL_HANDOFF.md'), compose_handoff_doc(p));
+    write_text(fullfile(docs_dir, 'INPUT_DATASET_MANIFEST.md'), compose_input_manifest_doc(input_manifest));
+    write_text(fullfile(docs_dir, 'VALIDATION_STATUS.md'), compose_validation_status_doc());
+    write_text(fullfile(figures_dir, 'FIGURE_CAPTIONS.md'), compose_figure_captions_doc());
 end
 
 function write_text(file, txt)
@@ -435,31 +527,44 @@ end
 
 function s = compose_parameter_doc(T)
     s = "# AFE+ADC Parameter Reference\n\n" + ...
-        "이 문서는 XMODEL 구현자가 따라갈 nominal parameter reference이다. 실제 회로 검증 완료를 의미하지 않는다.\n\n" + ...
+        "이 문서는 XMODEL 구현자가 그대로 참고할 nominal AFE+ADC parameter reference이다. 실제 transistor-level 또는 post-layout 검증 완료를 의미하지 않는다.\n\n" + ...
         table_to_md(T);
 end
 
 function s = compose_frequency_doc(T)
     s = "# Frequency Response Numerical Reference\n\n" + ...
-        "CSV: `results_dataset/afe_frequency_response_metrics.csv`\n\n" + table_to_md(T) + ...
-        "\n\n본 결과는 XMODEL 구현 전 MATLAB reference frequency response이다.\n";
+        "CSV: `results_dataset/afe_frequency_response_metrics.csv`\n\n" + ...
+        "본 결과는 XMODEL 구현 전 MATLAB reference frequency response이다. MATLAB time-domain chain의 60 Hz digital notch approximation은 정확히 60 Hz에서 ideal zero를 만들 수 있다. 따라서 60 Hz의 numerical dB 값은 physical analog attenuation claim이 아니며, CSV에서는 `< -120 dB` reporting cap으로 해석한다. 최종 논문에서 사용할 analog-style notch attenuation claim은 active Twin-T dense sweep 결과를 사용한다.\n\n" + ...
+        table_to_md(T);
 end
 
 function s = compose_notch_doc(T)
     s = "# Dense 60 Hz Notch Reference\n\n" + ...
-        "현재 notch scope는 60 Hz mains target이다. 50 Hz까지 완벽히 제거한다고 주장하지 않는다.\n\n" + ...
+        "이 문서는 60 Hz mains target에 대한 active Twin-T frequency-domain nominal reference를 정리한다. 50 Hz까지 완전히 제거한다고 주장하지 않는다.\n\n" + ...
+        "## Bandwidth/Q 정의\n\n" + ...
+        "- `configured_Q`: MATLAB notch 설계에 사용한 nominal parameter이다.\n" + ...
+        "- `estimated_Q_from_sweep`: 30-100 Hz dense sweep에서 local passband reference magnitude 기준으로 계산한 nominal estimate이다.\n" + ...
+        "- `physical_Q_claim`: 실제 회로 측정 Q가 아니므로 physical Q로 주장하지 않는다.\n\n" + ...
         table_to_md(T);
 end
 
 function s = compose_headroom_doc(T)
     s = "# Dynamic Range and ADC Headroom Reference\n\n" + ...
-        "MATLAB nominal pre-validation을 통해 선택한 IA gain과 ADC range가 대표 ECG 입력에 대해 clipping 없이 충분한 headroom을 제공함을 확인하였다.\n\n" + ...
+        "MATLAB nominal pre-validation을 통해 선택한 IA gain과 ADC range가 대표 ECG 입력에 대해 clipping 없이 충분한 headroom을 제공함을 확인하였다. 이 결과는 representative input 기준의 nominal ADC headroom reference이다.\n\n" + ...
         table_to_md(T);
 end
 
 function s = compose_adc_mapping_doc(T)
     s = "# ADC Code Mapping Convention\n\n" + ...
-        "MATLAB ADC는 `floor((V + 1.65)/3.3 * 4095)`를 사용한다. 따라서 0 V는 offset-binary 2047, signed -1로 매핑된다.\n\n" + ...
+        "MATLAB ADC output은 12-bit offset-binary code와 signed decimal stream 두 형태로 저장된다. `adc_offset_binary.mem`은 3-digit hex per line이며 XMODEL/RTL replay에 권장된다. `adc_signed.txt`는 `adc_offset_binary - 2048`로 계산한 signed decimal stream이다.\n\n" + ...
+        "MATLAB ADC는 `floor((V + 1.65)/3.3 * 4095)`를 사용한다. 따라서 0 V는 offset-binary 2047, signed -1로 매핑된다. XMODEL 및 RTL testbench는 이 convention과 맞춰야 한다.\n\n" + ...
+        "`reference_vectors/<CLASS>/input.csv`의 `source_code_signed_est_5uV_per_code`는 원본 ECG 입력 전압 scale 추적용 estimate이며 AFE ADC output code가 아니다. XMODEL analog input은 `voltage_V`를 사용한다. AFE ADC output reference는 `adc_offset_binary.mem`과 `adc_signed.txt`이다.\n\n" + ...
+        table_to_md(T);
+end
+
+function s = compose_input_manifest_doc(T)
+    s = "# Input Dataset Manifest\n\n" + ...
+        "이 문서는 MATLAB nominal pre-validation에 사용한 source input dataset의 재현성 정보를 정리한다. Fresh clone 기준 raw ECG input부터 완전 재생성하려면 `afe_input_dataset/`이 필요하다. 해당 폴더가 없으면 top-level script는 checked-in `results_dataset/` artifact를 기반으로 secondary report, figure, manifest를 재생성한다.\n\n" + ...
         table_to_md(T);
 end
 
@@ -467,24 +572,107 @@ function s = compose_handoff_doc(p)
     s = sprintf(['# MATLAB-to-XMODEL Handoff Document\n\n' ...
         'This document defines the MATLAB reference outputs that should be used for MATLAB-vs-XMODEL equivalence verification.\n' ...
         'It does not claim that MATLAB and XMODEL are already bit-exact equivalent.\n\n' ...
-        '## Block Order\n\n```text\ninput ECG voltage [V]\n→ HPF %.3f Hz\n→ IA ×%.0f\n→ 60 Hz notch, Q≈%.1f\n→ LPF %.1f Hz\n→ ADC ±1.65 V\n→ 12-bit offset-binary / signed stream\n```\n\n' ...
-        '## Recommended XMODEL Comparison Metrics\n\n| Metric | Target / Comment |\n|---|---|\n| waveform alignment | lag = 0 sample |\n| RMS error | preferably 2-3 LSB or lower after convention matching |\n| max absolute error | inspect outliers |\n| correlation | 0.99 or higher recommended |\n| ADC code convention | identical offset-binary/signed convention |\n'], p.fc_hpf, p.Av_total, p.Q_notch, p.fc_lpf);
+        '## 1. MATLAB AFE Chain Block Order\n\n```text\ninput ECG voltage [V]\n→ HPF %.3f Hz\n→ IA ×%.0f\n→ 60 Hz notch, Q≈%.1f\n→ LPF %.1f Hz\n→ ADC ±1.65 V\n→ 12-bit offset-binary / signed stream\n```\n\n' ...
+        '## 2. Time-domain stream equivalence 기준\n\n' ...
+        'XMODEL의 time-domain output은 아래 MATLAB reference와 비교한다.\n\n' ...
+        '- `reference_vectors/<CLASS>/matlab_stage_outputs.csv`\n' ...
+        '- `reference_vectors/<CLASS>/adc_offset_binary.mem`\n' ...
+        '- `reference_vectors/<CLASS>/adc_signed.txt`\n\n' ...
+        '| Metric | Target / Comment |\n|---|---|\n' ...
+        '| sample alignment | lag = 0 sample |\n' ...
+        '| RMS LSB error | preferably 2-3 LSB or lower after convention matching |\n' ...
+        '| max abs LSB error | inspect outliers |\n' ...
+        '| correlation | 0.99 or higher recommended |\n' ...
+        '| ADC code convention | identical offset-binary convention |\n' ...
+        '| signed stream convention | identical signed decimal convention |\n\n' ...
+        '## 3. Active Twin-T notch frequency-response 기준\n\n' ...
+        '60 Hz notch의 parameter-level/frequency-domain reference는 아래 결과와 비교한다.\n\n' ...
+        '- `docs/notch_60hz_reference.md`\n' ...
+        '- `results_dataset/notch_dense_sweep.csv`\n' ...
+        '- `results_dataset/notch_dense_sweep_metrics.csv`\n\n' ...
+        'The MATLAB time-domain stream uses a digital Q≈5 notch approximation.\n' ...
+        'The dense notch sweep provides an active Twin-T frequency-domain reference.\n' ...
+        'These are related but not identical comparison targets.\n' ...
+        'For XMODEL verification, time-domain stream equivalence and notch frequency-response validation should be checked separately.\n\n' ...
+        '## 4. Input / Output convention\n\n' ...
+        '- XMODEL analog input은 `reference_vectors/<CLASS>/input.csv`의 `voltage_V`를 사용한다.\n' ...
+        '- `source_code_signed_est_5uV_per_code`는 source ECG scale 추적용 estimate이며 AFE ADC output code가 아니다.\n' ...
+        '- 권장 XMODEL/RTL replay format은 `adc_offset_binary.mem`이다.\n' ...
+        '- signed stream 비교에는 `adc_signed.txt`를 사용한다.\n'], p.fc_hpf, p.Av_total, p.Q_notch, p.fc_lpf);
+end
+
+function s = compose_validation_status_doc()
+    s = [ ...
+        "# Validation Status\n\n" + ...
+        "이 문서는 MATLAB repo가 주장할 수 있는 범위와 후속 XMODEL/digital 파트로 넘겨야 하는 범위를 정리한다.\n\n" + ...
+        "| Item | Status | Artifact | Note |\n" + ...
+        "|---|---|---|---|\n" + ...
+        "| Parameter reference | PASS | `docs/afe_adc_parameter_reference.md` | XMODEL nominal 기준 |\n" + ...
+        "| Frequency response reference | PASS | `docs/frequency_response_reference.md` | 60 Hz ideal digital zero caveat 포함 |\n" + ...
+        "| Dense 60 Hz notch reference | PASS/PARTIAL | `docs/notch_60hz_reference.md` | bandwidth/Q는 nominal estimate, physical Q 아님 |\n" + ...
+        "| Dynamic range / headroom | PASS | `docs/dynamic_range_headroom_reference.md` | representative inputs 기준 clipping 0% |\n" + ...
+        "| ADC code mapping | PASS | `docs/adc_code_mapping_convention.md` | 0 V convention 명시 |\n" + ...
+        "| Reference vectors | PASS | `reference_vectors/reference_vector_manifest.md` | NSR/CHF/ARR/AFF SHA256 tracked |\n" + ...
+        "| MATLAB-vs-XMODEL equivalence | NOT DONE | XMODEL 담당 | claim 금지 |\n" + ...
+        "| CMRR / op-amp / ADC nonideal | NOT DONE | XMODEL 또는 analog stress 검증 | claim 금지 |\n" + ...
+        "| PCB / silicon / clinical validation | NOT DONE | scope 밖 | claim 금지 |\n" ...
+    ];
+end
+
+function s = compose_figure_captions_doc()
+    note_ko = "본 figure는 SystemVerilog XMODEL 구현 전 MATLAB nominal reference 결과이며, transistor-level, PCB-level, silicon-level 검증 또는 MATLAB-vs-XMODEL 등가성 검증을 의미하지 않는다.";
+    s = "# Figure Captions\n\n" + ...
+        "모든 figure는 논문/보고서 삽입 시 MATLAB nominal reference 범위를 명확히 표시해야 한다.\n\n" + ...
+        "| Figure | Caption / Note |\n" + ...
+        "|---|---|\n" + ...
+        "| `fig_total_frequency_response` | MATLAB nominal frequency response reference before SystemVerilog XMODEL implementation. 60 Hz digital notch zero is a model artifact; use active Twin-T dense sweep for analog-style notch claim. " + note_ko + " |\n" + ...
+        "| `fig_notch_dense_sweep` | Dense active Twin-T 60 Hz notch frequency-domain reference. 50 Hz complete rejection is not claimed. " + note_ko + " |\n" + ...
+        "| `fig_dynamic_range_headroom` | ADC rail headroom reference for representative ECG inputs. " + note_ko + " |\n" + ...
+        "| `fig_adc_code_distribution` | ADC code distribution reference showing codes do not saturate at rails for representative inputs. " + note_ko + " |\n" + ...
+        "| `fig_reference_vector_handoff` | MATLAB reference vector handoff flow for subsequent XMODEL equivalence verification. " + note_ko + " |\n";
 end
 
 function s = table_to_md(T)
+    % MATLAB version-compatible Markdown table writer.
+    % Avoids cell arrays of string objects such as {"---"}, which fail in
+    % some MATLAB releases where strjoin expects char-vector cell arrays.
     vars = T.Properties.VariableNames;
-    s = "| " + strjoin(vars, " | ") + " |\n";
-    s = s + "|" + strjoin(repmat({"---"}, 1, numel(vars)), "|") + "|\n";
+    vars = cellfun(@char, vars, 'UniformOutput', false);
+
+    s = ['| ' strjoin(vars, ' | ') ' |' newline];
+    s = [s '|' strjoin(repmat({'---'}, 1, numel(vars)), '|') '|' newline];
+
     for i = 1:height(T)
-        vals = strings(1, numel(vars));
+        vals = cell(1, numel(vars));
         for j = 1:numel(vars)
             x = T{i,j};
             if isnumeric(x)
-                vals(j) = string(x);
+                if isempty(x)
+                    vals{j} = '';
+                elseif isscalar(x) && isnan(x)
+                    vals{j} = 'NaN';
+                elseif isscalar(x)
+                    vals{j} = num2str(x, '%.12g');
+                else
+                    vals{j} = mat2str(x);
+                end
+            elseif isstring(x)
+                vals{j} = char(x);
+            elseif iscell(x)
+                if isempty(x)
+                    vals{j} = '';
+                else
+                    vals{j} = char(string(x{1}));
+                end
+            elseif ischar(x)
+                vals{j} = x;
             else
-                vals(j) = string(x);
+                vals{j} = char(string(x));
             end
+
+            vals{j} = strrep(vals{j}, '|', '\|');
+            vals{j} = strrep(vals{j}, newline, '<br>');
         end
-        s = s + "| " + strjoin(vals, " | ") + " |\n";
+        s = [s '| ' strjoin(vals, ' | ') ' |' newline]; %#ok<AGROW>
     end
 end
